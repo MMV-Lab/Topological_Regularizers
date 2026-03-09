@@ -2,10 +2,6 @@
 
 This project is detailed in the following [paper](https://)
 
-<span style="color:red;"><b>Important Note:</b></span><br>
-
-We also include the TI_loss this is not part of our proposal but we use it for comparation proposes you can find the info for their original developers [here](https://github.com/TopoXLab/TopoInteraction)
-
 ## Installation
 
 Before starting, we recommend [creating a new conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) or a [virtual environment](https://docs.python.org/3/library/venv.html) with **Python 3.10+**.
@@ -55,7 +51,32 @@ If you prefer to manually set the full YAML options and run via the command line
 
 We provide a [model evaluation](model_evaluation.ipynb) Jupyter notebook that allows you to extract information about model predictions and compare multiple training runs for a single model. 
 
-Simply run the notebook and follow the instructions.
+## Topological Regularizators availables
+
+The training objective $\mathscr{L}_{total}$ is a weighted sum of a base segmentation loss and the desired regularization terms:
+
+$\mathscr{L}_{total}=\mathscr{L}_{base}(P,Y)+\sum_{r\in Reg}\lambda_r\cdot\omega(e)_r\cdot\mathscr{L}_{r}(P,Y)$
+
+
+<b>Base Loss Function</b>  $\mathscr{L}_{base}(P, Y)$
+
+<b>ELBO</b> (In the case the Probabilistic U-Net)
+
+<b>GDL</b> (In the case the Attention U-Net)
+
+<b>Regularizator terms</b>  $\mathscr{L}_{r}(P, Y)$
+
+($\mathscr{L}_{\mathscr{FD}}$) Fractal dimension 
+
+($\mathscr{L}_{cc}$) Connectivity Coherence Loss
+
+($\mathscr{L}_{\mathscr{WHR}}$) Weighted Hausdorff Regularization
+
+($\mathscr{L}_{tc}$) Topological Complexity / Persistence Diagrams
+
+($\mathscr{L}_{hom}$) Persistence Images
+
+($\mathscr{L}_{TI}$) Topological restricted loss proposed by [TopoXLab](https://github.com/TopoXLab/TopoInteraction)
 
 ## Some results of the use of our regularizator terms 
 

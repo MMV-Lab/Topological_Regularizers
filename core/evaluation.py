@@ -385,7 +385,7 @@ def add_missing_files(files_prediction,anotators_files,selected_gt):
                 zero_pred = np.zeros(img_pred.shape)
                 OmeTiffWriter.save(data=zero_pred, uri=save_path, dim_order="ZYX")
 
-def extract_params(yaml_path):
+def extract_params(yaml_path,dim=None):
     with open(yaml_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -397,6 +397,11 @@ def extract_params(yaml_path):
         "spatial_size": None,
         "resize_mode": None,
     }
+    
+    if dim is None:
+        spatial_dim = config.get("model",{}).get("net",{}).get("params",{}).get("spatial_dims",None)
+    else:
+        spatial_dim = dim    
 
     use_S = False
     use_R = False
@@ -407,6 +412,10 @@ def extract_params(yaml_path):
         if func_name == "Spacingd":
             use_S = True
             extracted["pixdim"] = params.get("pixdim", None)
+
+            if spatial_dim == 2 and len(extracted["pixdim"]) == 2:
+                extracted["pixdim"].insert(0,1) 
+                  
             mode = params.get("mode", None)
             if isinstance(mode, list):
                 extracted["spacing_mode"] = "nearest"
@@ -417,17 +426,19 @@ def extract_params(yaml_path):
             use_R = True
             extracted["spatial_size"] = params.get("spatial_size", None)
 
+            if spatial_dim == 2 and len(extracted["spatial_size"]) == 2:
+                extracted["spatial_size"].insert(0,1)  
+
             mode = params.get("mode", None)
             if isinstance(mode, list):
                 extracted["resize_mode"] = "nearest"
             else:
                 extracted["resize_mode"] = mode
-            
         
     if not (use_R or use_S):
-        raise ValueError(f"Not Resized or Spacingd definition found in the yaml {yaml_path} ")     
+        raise ValueError(f"Not Resized or Spacingd definition found in the yaml {yaml_path} ")
 
-    return extracted
+    return extracted , spatial_dim 
 
 
 def apply_transforms(image_np,config,original_pixdim=None):
@@ -486,13 +497,15 @@ def evaluation_metrics(anotators_files,
     staple_threshold=0.5,
     gt_mode = 'single',
     yaml_path=None,
+    model_dims=None
     ):
 
     if save_mask: 
         (selected_predictions.parent / 'Generated_masks').mkdir(parents=True, exist_ok=True)
     
     if yaml_path is not None:
-        params=extract_params(yaml_path)    
+        params,_=extract_params(yaml_path,model_dims) 
+
     
     headers = [folder.split('_')[-1] for folder in anotators_files]
     headers.extend(['Union','Intersection','Staple','Model'])
@@ -871,6 +884,18 @@ def create_evaluation_menu():
     yaml_path_widget.filter_pattern = ['*.yaml'] 
     yaml_path_widget.layout = widgets.Layout(width='80%')
 
+
+    model_dims_widget = widgets.Dropdown(
+        options={
+            '2D': '2D', 
+            '3D': '3D'
+        },
+        value='2D', 
+        description='Spatial model dimension:',
+        disabled=False,
+        style={'description_width':'50%'} 
+    )    
+
     predictions_path_widget = FileChooser(
         Path.cwd().as_posix(), 
         title='Select model predictions folder',
@@ -910,7 +935,7 @@ def create_evaluation_menu():
     )    
 
     eval_class_widget = widgets.BoundedIntText(
-        value=2,           
+        value=1,           
         min=0,             
         step=1,
         description='Evaluation Class:',
@@ -934,7 +959,7 @@ def create_evaluation_menu():
     predictions_path_widget.layout = widgets.Layout(width='80%')
 
     use_dilatation_checkbox = widgets.Checkbox(
-        value=True,
+        value=False,
         description="Use Dilatation",
         disabled=False
     )
@@ -963,9 +988,18 @@ def create_evaluation_menu():
 
     def on_dilatation_change(change):
         if change['new']:
-            dilation_options_box.layout.display = 'flex'
+            model_dims_widget.layout.display = 'flex'
         else:
-            dilation_options_box.layout.display = 'none'
+            model_dims_widget.layout.display = 'none'
+
+    
+    def check_yaml(chooser):
+        if chooser.selected:
+            _,spatial_dim = extract_params(chooser.selected,None)
+            if spatial_dim is None:
+                model_dims_widget.layout.display = 'flex'
+            else:
+                model_dims_widget.layout.display = 'none'    
 
 
     def check_gt_subfolders(chooser):
@@ -981,10 +1015,12 @@ def create_evaluation_menu():
                     save_mask_checkbox.value = False
                     save_mask_checkbox.layout.display = 'none'
     
+    model_dims_widget.layout.display = 'none' 
     use_dilatation_checkbox.observe(on_dilatation_change, names='value')
     dilation_options_box.layout.display = 'flex' if use_dilatation_checkbox.value else 'none'
 
     gt_path_widget.register_callback(check_gt_subfolders)
+    yaml_path_widget.register_callback(check_yaml)
 
     save_mask_checkbox = widgets.Checkbox(
         value=False,
@@ -997,7 +1033,7 @@ def create_evaluation_menu():
 
     display(gt_path_widget, predictions_path_widget,outName,gt_mode,eval_mode,eval_class_widget, staple_threshold_widget, 
             use_dilatation_checkbox, dilation_options_box, 
-            save_mask_checkbox,yaml_path_widget, run_button, output)
+            save_mask_checkbox,yaml_path_widget,model_dims_widget, run_button, output)
     
     def on_button_clicked(b):
         with output:
@@ -1010,7 +1046,14 @@ def create_evaluation_menu():
             if not yaml_path_widget.selected:
                 yaml_path = None
             else:
+                model_dims = None
                 yaml_path = yaml_path_widget.selected 
+                if model_dims_widget.layout.display != 'none':
+                    if model_dims_widget.value == '2D':
+                        model_dims = 2
+                    else:
+                        model_dims = 3    
+
 
             selected_gt = Path(gt_path_widget.selected)
             base_prediction_path = Path(predictions_path_widget.selected)
@@ -1091,7 +1134,8 @@ def create_evaluation_menu():
                     eval_class, 
                     staple_thresh,
                     gt_mode_selection,
-                    yaml_path
+                    yaml_path,
+                    model_dims
                 )
                 
                 print('--- Generating plots ---')
