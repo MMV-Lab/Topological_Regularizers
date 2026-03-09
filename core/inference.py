@@ -580,9 +580,6 @@ def create_inference_menu():
                     base_cfg.model.framework = base_cfg.model.framework + '_old'
                     base_cfg.model.net['module_name'] =  base_cfg.model.net['module_name']+'_old'
 
-                print(spatial_dims)
-                print(base_cfg.model.net['module_name'])
-                return
                 if spatial_dims == 3:
                     inference_mode = 'vol2vol'
                     print(f"Info: Spatial dimensions = 3. Using volumetric inference mode ({inference_mode}).")
@@ -698,5 +695,6 @@ def create_inference_menu():
                     run_single_inference(copy.deepcopy(base_cfg), ckpt, output_path / out_name)
                 print(f"######################## Predictios for {len(inference_tasks)} models done #############################")
                 print("\n######################## All Predictions Ready #############################")
+
 
     run_button.on_click(on_button_clicked)
