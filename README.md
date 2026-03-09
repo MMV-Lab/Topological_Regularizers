@@ -55,7 +55,7 @@ We provide a [model evaluation](model_evaluation.ipynb) Jupyter notebook that al
 
 The training objective $\mathscr{L}_{total}$ is a weighted sum of a base segmentation loss and the desired regularization terms:
 
-$\mathscr{L}_{\text{total}}=\mathscr{L}_{\text{base}}(P,Y)+\sum_{r\in\text{Reg}}\lambda_r\cdot\omega(e)_r\cdot\mathscr{L}_{r}(P,Y)$
+$\mathscr{L}_{total}=\mathscr{L}_{base}(P,Y)+\sum_{r\in Reg}\lambda_r\cdot\omega(e)_r\cdot\mathscr{L}_{r}(P,Y)$
 
 
 <b>Base Loss Function</b>  $\mathscr{L}_{base}(P, Y)$
