@@ -765,6 +765,8 @@ def save_summary_plots(df, folder_path, is_single=True):
         else:
             plot_df = df
 
+        num_curves = len(plot_df)
+        colors = plt.cm.tab20(np.linspace(0, 1, num_curves))
         for title, suffix in metrics.items():
             relevant_cols = [c for c in df.columns if c.endswith(suffix)]
             
@@ -774,10 +776,10 @@ def save_summary_plots(df, folder_path, is_single=True):
             plt.figure(figsize=(12, 7))
             x_labels = [c.replace(suffix, '') for c in relevant_cols]
             
-            for _, row in plot_df.iterrows():
+            for i, (_, row) in enumerate(plot_df.iterrows()):
                 label = row[label_col]
                 values = row[relevant_cols].values
-                plt.plot(x_labels, values, marker='o', label=label)
+                plt.plot(x_labels, values, marker='o', label=label,color=colors[i])
 
             if title in ['Dice', 'Jaccard', 'BIoU', 'OCA']:
                 titlef = f'Summary of {title} Metrics ↑' 
@@ -1183,4 +1185,5 @@ def graph_generator(input_path):
         plot_distributions(df, hausdorff_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_hausdorff', 'Hausdorff distance')
         plot_distributions(df, msd_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_msd', 'Mean surface distance')
         plot_distributions(df, biou_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_biou', 'Boundary IoU')
+
         plot_distributions(df, oca_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_oca', 'Overall Contour Agreement')
