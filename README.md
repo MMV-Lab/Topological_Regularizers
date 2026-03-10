@@ -7,7 +7,7 @@ This project is detailed in the following [paper](https://)
 
 The implementations and results are based/generated in the following file structure:
 
-<img src="docs/imgs/files.png" width="400"/>
+<img src="docs/imgs/files.PNG" width="400"/>
 
 ## Installation
 
