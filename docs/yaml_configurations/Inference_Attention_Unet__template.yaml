@@ -79,15 +79,15 @@ model:
     pred_slice2vol:
       uncertainity_map: False  # True generate volume segmentation + uncertainity map / False : Just volume segmentation.
       multi_pred_mode: single # Prediction mode:  single -> Normal way  max/var/mean -> Take advantage of the n_samples and apply the operation to generate a final prediction.  
-      max_proj: True #Make Prediction over the max projection on chanels
+      max_proj: False #Make Prediction over the max projection on chanels
 
       # Options for volumes postproces (changes are not reflected in the uncertainity map just in the predictions).
-      n_class_correction: 2 # Number of classes (counting background)
+      #n_class_correction: 2 # Number of classes (counting background)
       # pixel_dim: [1,1,1] # Physical pixel sizes (Z,Y,X) to take into account 'auto' -> try to take from the metadata 
       # remove_object_size : [50,30]  # Removes small, isolated regions in the segmentation output. It requires the [minimum size] in pixels an object must have to be kept. 
       # hole_size_threshold: [85,90] # Filling holes within segmented objects. It requires the [maximum area] in pixels a hole must have to be filled. 
       # min_thickness_list: [1000,2] # Rreduce the thickness of the objects, to a minimal [pixel size] while ensuring that the connectivity and general shape of the original object are maintained. 
-      # perycites_correction: True 
+      # perycites_correction: True #round objects correction
 
       # Options for uncertainty map
       n_samples: 1 # Samples taken for the uncertainty computing and multiprediction option 

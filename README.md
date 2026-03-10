@@ -1,6 +1,13 @@
+
 ## Geometric and Topological Regularization for Bioimage Segmentation
 
 This project is detailed in the following [paper](https://)
+
+## File structure
+
+The implementations and results are based/generated in the following file structure:
+
+<img src="docs/imgs/files.png" width="400"/>
 
 ## Installation
 
@@ -37,19 +44,35 @@ For training, use the provided [YAML templates](docs/yaml_configurations). These
 
 `run_im2im --config /path/to/your_train_config.yaml`
 
-For more detailed info related to training, please refer to the documentation in our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) repo.
-
 ## Inference
 
 We provide an [inference](inference.ipynb) Jupyter notebook to facilitate predictions. It works whether you want to make a prediction with your trained model or manage cases where you have multiple trained versions of the same model and want to run inference over the same dataset.
 
 To use it, run Jupyter Lab, define your model in the provided [YAML templates](docs/yaml_configurations), and follow the instructions in the notebook. 
 
-If you prefer to manually set the full YAML options and run via the command line, follow the inference instructions in our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) repo.
+If you need to avoid the Jupyter Notebook execution we provide a full cli version executable trought:
+
+`python core/inference_cli.py --yaml_path /your/path/ --images_folder /your/path/ --models_folder /your/path/ --multi_output_dir /your/path/  --weight_option last --pipeline_mode multi `
+
+Where the inputs are the same required in the Jupyter notebook
+
+
+For more detailed info related to training and inference, please refer to the documentation in our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) repo.
 
 ## Evaluation
 
-We provide a [model evaluation](model_evaluation.ipynb) Jupyter notebook that allows you to extract information about model predictions and compare multiple training runs for a single model. 
+We provide a [model evaluation](model_evaluation.ipynb) Jupyter notebook that allows you to extract information about model predictions and compare multiple training runs for a single model.
+
+
+If you need to avoid the Jupyter Notebook execution we provide a full cli version executable for each step trought:
+
+`python core/csv_metric_generation.py --gt-path /your/path/ --predictions-path /your/path/ `
+
+`python core/summary_generation.py --csv-path /your/path/`
+
+`python core/single_model_plots_generation.py --csv-path /your/path/`
+
+Where the inputs are the same required in the Jupyter notebook
 
 ## Topological Regularizators availables
 
@@ -79,5 +102,4 @@ $\mathscr{L}_{total}=\mathscr{L}_{base}(P,Y)+\sum_{r\in Reg}\lambda_r\cdot\omega
 ($\mathscr{L}_{TI}$) Topological restricted loss proposed by [TopoXLab](https://github.com/TopoXLab/TopoInteraction)
 
 ## Some results of the use of our regularizator terms 
-
 <img src="docs/imgs/summ.png" width="800"/>
