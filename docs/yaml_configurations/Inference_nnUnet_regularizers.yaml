@@ -1,0 +1,50 @@
+############################################################## (Recomended) ############################################################
+######################## If you want to infer with the Jupyter Lab only define model options preprocesing and post processing #########################
+mode: inference
+
+data:
+  inference_input:
+    dir: /path/to/the/input/dir
+    data_type: .tiff
+    #Your data format
+    reader_params:
+      dimension_order_out: "CZYX"
+      C: 0
+      T: 0
+      Z: 0
+      X: 0
+      Y: 0
+  preprocess:
+    - module_name: monai.transforms
+      func_name: NormalizeIntensity
+      params:
+        channel_wise: True
+  postprocess:
+    - module_name: mmv_im2im.postprocessing.basic_collection
+      func_name: generate_classmap
+# #Probabilistic modelconfiguration (same used for training)
+model:
+  framework: nnUnet
+  net:
+    module_name: monai.networks.nets
+    func_name: DynUNet
+    params:
+      spatial_dims: 2 
+      in_channels: 2 
+      out_channels: 3 
+      # DynUNet initial values 
+      kernel_size: [[3, 3], [3, 3], [3, 3], [3, 3], [3, 3]]
+      strides: [[1, 1], [2, 2], [2, 2], [2, 2], [2, 2]]
+      upsample_kernel_size: [[2, 2], [2, 2], [2, 2], [2, 2]]
+      filters: [32, 64, 128, 256, 512] #Change this for the computed for the nn in -> lightning_logs/version_x/model_config.yaml
+      dropout: 0.2
+      res_block: True # Enables residual connections standard in modern nnU-Nets
+      deep_supervision: False
+  checkpoint:  /path/to/the/ckpt/file/with/model/weights
+  model_extra:
+    cpu_only: False
+trainer:
+  verbose: True
+  params:
+    gpus: 1
+    precision: 32
