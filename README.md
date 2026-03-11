@@ -66,7 +66,7 @@ We provide a [model evaluation](model_evaluation.ipynb) Jupyter notebook that al
 
 If you need to avoid the Jupyter Notebook execution we provide a full cli version executable for each step trought:
 
-`python core/csv_metric_generation.py --gt-path /your/path/ --predictions-path /your/path/ `
+`python core/csv_metric_generation.py --gt-path /your/path/ --predictions-path /your/path/ --eval-class 1`
 
 `python core/summary_generation.py --csv-path /your/path/`
 

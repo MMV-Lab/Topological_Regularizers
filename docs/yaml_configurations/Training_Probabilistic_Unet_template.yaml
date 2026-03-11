@@ -2,7 +2,7 @@ mode: train
 
 data:
   category: "pair"
-  data_path: "/mnt/eternus/users/Jair/Regularizers/Datasets/Maps/Data/train"
+  data_path: "path/to/your/data"
   dataloader:
     train:
       dataloader_type:  
@@ -63,32 +63,6 @@ data:
       params:
         channel_wise: True
         keys: ["IM"]
-
-    # # Activate this if the image sape is not divisible by 2^n = k -> n number of reducction 2 in channels AttentionUnet ([1, 2, 2, 2, 2] ->2^4 = 16 =k) 
-    # - module_name: monai.transforms
-    #   func_name: DivisiblePadd
-    #   params:
-    #     keys: ["IM", "GT"]
-    #     k: 16
-
-
-# For training with datasets with images of different shapes you can scale to a one shape with this.
-# ############################### volume/slice multishape ##############################
-#     - module_name: monai.transforms
-#       func_name: Spacingd
-#       params:
-#         keys: ["IM", "GT"]
-#         pixdim: [z_size,x_size,y_size]  
-#         mode: ["trilinear", "nearest"] #2D ["bilinear", "nearest"] #3D ["trilinear", "nearest"]
-#     - module_name: monai.transforms
-#       func_name: Resized
-#       params:
-#         keys: ["IM", "GT"]
-#         spatial_size: [z_shape,y_shape, z_shape] 
-#         mode: ["trilinear", "nearest"] #2D ["bilinear", "nearest"] #3D ["trilinear", "nearest"]"
-# ########################################################################################################
-
-
     - module_name: monai.transforms
       func_name: EnsureTyped
       params:

@@ -1,6 +1,6 @@
 import os
 import warnings
-warnings.filterwarnings("ignore",category=FutureWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 from pathlib import Path
 import numpy as np
 from bioio import BioImage
@@ -11,7 +11,6 @@ from skimage.morphology import dilation, disk, square
 from scipy.ndimage import label, binary_erosion
 import pandas as pd
 import matplotlib.pyplot as plt
-import SimpleITK as sitk
 import logging
 import torch
 import monai
@@ -22,7 +21,7 @@ from monai.data import MetaTensor
 
 logging.getLogger("bioio").setLevel(logging.ERROR)
 
-##################################################### metrics computations fucntions ################################################################
+##################################################### metrics computations functions ################################################################
 def to_monai_tensor(matrix):
     """
     Converts a numpy array of shape (Z, Y, X) or (Y, X) into 
@@ -78,199 +77,49 @@ def overall_contour_agreement(y_pred, y_true):
     return 2.0 * intersection / sum_bounds
 
 
-def hausdorff_computing(pr,n_annotators, predictions_list, m_gt):
+def hausdorff_computing(pr, m_pred, m_gt):
     metric_fn = HausdorffDistanceMetric(percentile=pr, include_background=True, get_not_nans=False)
+    m_pred_t = to_monai_tensor(m_pred)
     m_gt_t = to_monai_tensor(m_gt)
-    hausdorff_results = []
     
-    for m_pred in predictions_list:
-        m_pred_t = to_monai_tensor(m_pred)
-        if m_pred_t.sum() == 0 and m_gt_t.sum() == 0:
-            hd_sym = 0.0
-        elif m_pred_t.sum() == 0 or m_gt_t.sum() == 0:
-            hd_sym = 100.0
-        else:
-            metric_fn(y_pred=m_pred_t, y=m_gt_t)
-            hd_sym = metric_fn.aggregate().item()
-            metric_fn.reset()
-        hausdorff_results.append(hd_sym)
-
-    n_to_consider = min(n_annotators, len(predictions_list))
-
-    if n_to_consider > 0:
-        subset_tensors = [to_monai_tensor(m) for m in predictions_list[:n_to_consider]]
-        pair_distances = []
-        
-        for i in range(n_to_consider):
-            for j in range(i + 1, n_to_consider):
-                A = subset_tensors[i]
-                B = subset_tensors[j]
-                
-                if A.sum() == 0 and B.sum() == 0:
-                    pair_distances.append(0.0)
-                elif A.sum() == 0 or B.sum() == 0:
-                    pair_distances.append(100.0) 
-                else:
-                    metric_fn(y_pred=A, y=B)
-                    val = metric_fn.aggregate().item()
-                    metric_fn.reset()
-                    pair_distances.append(val)
-        
-        hd_generalized_annotators = np.mean(pair_distances) if pair_distances else 0.0
-        hd_generalized_model = np.mean(hausdorff_results) if hausdorff_results else 0.0
-    else:
-        hd_generalized_annotators = 0.0
-        hd_generalized_model = 0.0
+    if m_pred_t.sum() == 0 and m_gt_t.sum() == 0:
+        return 0.0
+    elif m_pred_t.sum() == 0 or m_gt_t.sum() == 0:
+        return 100.0
     
-    hausdorff_results.append(hd_generalized_annotators)
-    hausdorff_results.append(hd_generalized_model)
-    
-    return hausdorff_results
+    metric_fn(y_pred=m_pred_t, y=m_gt_t)
+    hd_sym = metric_fn.aggregate().item()
+    metric_fn.reset()
+    return hd_sym
 
 
-def msd_computing(n_annotators, predictions_list, m_gt):
+def msd_computing(m_pred, m_gt):
     """
     Calculates Symmetric Mean Surface Distance using MONAI.
     """
     metric_fn = SurfaceDistanceMetric(include_background=True, symmetric=True, get_not_nans=False)
+    m_pred_t = to_monai_tensor(m_pred)
     m_gt_t = to_monai_tensor(m_gt)
-    msd_results = []
     
-    for m_pred in predictions_list:
-        m_pred_t = to_monai_tensor(m_pred)
-        
-        if m_pred_t.sum() == 0 and m_gt_t.sum() == 0:
-            msd_sym = 0.0 
-        elif m_pred_t.sum() == 0 or m_gt_t.sum() == 0:
-            msd_sym = 100.0
-        else:
-            metric_fn(y_pred=m_pred_t, y=m_gt_t)
-            msd_sym = metric_fn.aggregate().item()
-            metric_fn.reset()
-        
-        msd_results.append(msd_sym)
-
-    n_to_consider = min(n_annotators, len(predictions_list))
-
-    if n_to_consider > 0:
-        subset_tensors = [to_monai_tensor(m) for m in predictions_list[:n_to_consider]]
-        pair_distances = []
-        
-        for i in range(n_to_consider):
-            for j in range(i + 1, n_to_consider):
-                A = subset_tensors[i]
-                B = subset_tensors[j]
-                
-                if A.sum() == 0 and B.sum() == 0:
-                    pair_distances.append(0.0) 
-                elif A.sum() == 0 or B.sum() == 0:
-                    pair_distances.append(100.0) 
-                else:
-                    metric_fn(y_pred=A, y=B)
-                    val = metric_fn.aggregate().item()
-                    metric_fn.reset()
-                    pair_distances.append(val)
-        
-        msd_generalized_annotators = np.mean(pair_distances) if pair_distances else 0.0
-        msd_generalized_model = np.mean(msd_results) if msd_results else 0.0
-    else:
-        msd_generalized_annotators = 0.0
-        msd_generalized_model = 0.0
+    if m_pred_t.sum() == 0 and m_gt_t.sum() == 0:
+        return 0.0 
+    elif m_pred_t.sum() == 0 or m_gt_t.sum() == 0:
+        return 100.0
     
-    msd_results.append(msd_generalized_annotators)
-    msd_results.append(msd_generalized_model)
-    
-    return msd_results
+    metric_fn(y_pred=m_pred_t, y=m_gt_t)
+    msd_sym = metric_fn.aggregate().item()
+    metric_fn.reset()
+    return msd_sym
 
 
-def boundary_iou_computing(n_annotators, predictions_list, m_gt):
-    biou_results = []
-    
-    for m_pred in predictions_list:
-        biou_results.append(boundary_iou(m_pred, m_gt))
-
-    n_to_consider = min(n_annotators, len(predictions_list))
-
-    if n_to_consider > 0:
-        pair_distances = []
-        for i in range(n_to_consider):
-            for j in range(i + 1, n_to_consider):
-                pair_distances.append(boundary_iou(predictions_list[i], predictions_list[j]))
-        
-        generalized_annotators = np.mean(pair_distances) if pair_distances else 0.0
-        generalized_model = np.mean(biou_results) if biou_results else 0.0
-    else:
-        generalized_annotators = 0.0
-        generalized_model = 0.0
-    
-    biou_results.append(generalized_annotators)
-    biou_results.append(generalized_model)
-    
-    return biou_results
-
-
-def oca_computing(n_annotators, predictions_list, m_gt):
-    oca_results = []
-    
-    for m_pred in predictions_list:
-        oca_results.append(overall_contour_agreement(m_pred, m_gt))
-
-    n_to_consider = min(n_annotators, len(predictions_list))
-
-    if n_to_consider > 0:
-        pair_distances = []
-        for i in range(n_to_consider):
-            for j in range(i + 1, n_to_consider):
-                pair_distances.append(overall_contour_agreement(predictions_list[i], predictions_list[j]))
-        
-        generalized_annotators = np.mean(pair_distances) if pair_distances else 0.0
-        generalized_model = np.mean(oca_results) if oca_results else 0.0
-    else:
-        generalized_annotators = 0.0
-        generalized_model = 0.0
-    
-    oca_results.append(generalized_annotators)
-    oca_results.append(generalized_model)
-    
-    return oca_results
-
-
-def jaccard_computing(n_annotators,predictions_list, m_gt):
+def jaccard_computing(m_pred, m_gt):
+    m_pred_bool = m_pred.astype(bool)
     m_gt_bool = m_gt.astype(bool)
-    jaccard_results = []
-
-    for m_pred in predictions_list:
-        m_pred_bool = m_pred.astype(bool)
-        
-        intersection = np.sum(m_pred_bool & m_gt_bool)
-        union = np.sum(m_pred_bool | m_gt_bool)
-        jaccard = intersection / union if union != 0 else 1.0 
-        
-        jaccard_results.append(jaccard)
-
-    n_to_consider = min(n_annotators, len(predictions_list))
-
-    if n_to_consider > 0:
-        subset_matrices_bool = [m.astype(bool) for m in predictions_list[:n_to_consider]]
-
-        annotators_intersection = np.sum(np.logical_and.reduce(subset_matrices_bool))
-        annotators_union = np.sum(np.logical_or.reduce(subset_matrices_bool))
-        jaccard_generalized_annotators = annotators_intersection / annotators_union \
-                                if annotators_union != 0 else 1.0
-        
-        generalized_matrices = subset_matrices_bool + [m_gt_bool]
-        generalized_intersection = np.sum(np.logical_and.reduce(generalized_matrices))
-        generalized_union = np.sum(np.logical_or.reduce(generalized_matrices))
-        jaccard_generalized_model = generalized_intersection / generalized_union \
-                                if generalized_union != 0 else 1.0
-    else:
-        jaccard_generalized_annotators = 0.0
-        jaccard_generalized_model = 0.0
     
-    jaccard_results.append(jaccard_generalized_annotators)
-    jaccard_results.append(jaccard_generalized_model)
-    
-    return jaccard_results
+    intersection = np.sum(m_pred_bool & m_gt_bool)
+    union = np.sum(m_pred_bool | m_gt_bool)
+    return intersection / union if union != 0 else 1.0
+
 
 def binarizar_matrix(matrix):
     if len(matrix.shape) == 2:
@@ -285,7 +134,6 @@ def binarizar_matrix(matrix):
         matrix_bin = np.zeros_like(matrix[zz], dtype=np.uint8)
         matrix_bin[mask] = 1
         binary.append(matrix_bin.astype(np.uint8))
-
 
     return np.stack(binary, axis=0).astype(np.uint8)
 
@@ -311,17 +159,17 @@ def thicken_segmentation_skimage(binary_matrix, n_pixels, kernel_shape):
 
     return np.stack(thickened_segmentation, axis=0)
 
+
 def read_file(fn):
     try:
         img_pred = BioImage(fn, reader=bioio_tifffile.Reader).get_image_data("ZYX", C=0, T=0)
-    except Exception as e:
+    except Exception:
         try:
             img_pred = BioImage(fn).get_image_data("ZYX", C=0, T=0)  
-        except Exception as e:
+        except Exception:
             raise ValueError("Error at reading time.")
-            return
-    
     return img_pred
+
 
 def extract_class(matrix, target_class):
     if len(matrix.shape) == 2:
@@ -339,50 +187,32 @@ def extract_class(matrix, target_class):
     
     return class_f
 
+
 def count_components(matrix):
     if len(matrix.shape) == 2:
         matrix = matrix[None,...]
-    
     if len(matrix.shape) != 3:
         raise ValueError(f"Image dims {matrix.shape} but ZYX are required")
-
-    labeled_array, num_objects = label(matrix)
-    
+    _, num_objects = label(matrix)
     return num_objects
 
-def combine_binary_masks(mask_list):
-    union_mask = mask_list[0].copy()
-    intersection_mask = mask_list[0].copy()
-    for i in range(1, len(mask_list)):
-        current_mask = mask_list[i]
-        union_mask = np.logical_or(union_mask, current_mask)
-        intersection_mask = np.logical_and(intersection_mask, current_mask)
 
-    union_mask = union_mask.astype(np.uint8)
-    intersection_mask = intersection_mask.astype(np.uint8)
-    
-    return union_mask, intersection_mask
-
-
-def add_missing_files(files_prediction,anotators_files,selected_gt):
-    for fn in tqdm(files_prediction, desc= "Looking for missing annotations"):
+def add_missing_files(files_prediction, selected_gt):
+    for fn in tqdm(files_prediction, desc="Looking for missing annotations"):
         stem_file = fn.stem.replace('_segPred','') 
         ext = fn.suffix
-        for folder in anotators_files:
-            tiff_file = str(stem_file)+'.tiff'
-            tif_file = str(stem_file)+'.tif'
-            if (selected_gt / folder / tiff_file).exists():
-                ext = '.tiff'
-            elif (selected_gt / folder / tif_file).exists():
-                ext = '.tif'
-            else:
-                out_img_file = str(stem_file) + str(ext) 
-                save_path = selected_gt / folder / out_img_file
-                img_pred = read_file(fn)
-                zero_pred = np.zeros(img_pred.shape)
-                OmeTiffWriter.save(data=zero_pred, uri=save_path, dim_order="ZYX")
+        tiff_file = selected_gt / f"{stem_file}.tiff"
+        tif_file = selected_gt / f"{stem_file}.tif"
+        
+        if not (tiff_file.exists() or tif_file.exists()):
+            out_img_file = f"{stem_file}{ext}"
+            save_path = selected_gt / out_img_file
+            img_pred = read_file(fn)
+            zero_pred = np.zeros(img_pred.shape)
+            OmeTiffWriter.save(data=zero_pred, uri=save_path, dim_order="ZYX")
 
-def extract_params(yaml_path,dim=None):
+
+def extract_params(yaml_path, dim=None):
     with open(yaml_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -395,10 +225,7 @@ def extract_params(yaml_path,dim=None):
         "resize_mode": None,
     }
     
-    if dim is None:
-        spatial_dim = config.get("model",{}).get("net",{}).get("params",{}).get("spatial_dims",None)
-    else:
-        spatial_dim = dim    
+    spatial_dim = config.get("model",{}).get("net",{}).get("params",{}).get("spatial_dims",None) if dim is None else dim    
 
     use_S = False
     use_R = False
@@ -409,37 +236,28 @@ def extract_params(yaml_path,dim=None):
         if func_name == "Spacingd":
             use_S = True
             extracted["pixdim"] = params.get("pixdim", None)
-
             if spatial_dim == 2 and len(extracted["pixdim"]) == 2:
                 extracted["pixdim"].insert(0,1) 
                   
             mode = params.get("mode", None)
-            if isinstance(mode, list):
-                extracted["spacing_mode"] = "nearest"
-            else:
-                extracted["spacing_mode"] = mode
+            extracted["spacing_mode"] = "nearest" if isinstance(mode, list) else mode
             
         if func_name == "Resized":
             use_R = True
             extracted["spatial_size"] = params.get("spatial_size", None)
-
             if spatial_dim == 2 and len(extracted["spatial_size"]) == 2:
                 extracted["spatial_size"].insert(0,1)  
 
             mode = params.get("mode", None)
-            if isinstance(mode, list):
-                extracted["resize_mode"] = "nearest"
-            else:
-                extracted["resize_mode"] = mode
+            extracted["resize_mode"] = "nearest" if isinstance(mode, list) else mode
         
     if not (use_R or use_S):
-        raise ValueError(f"Not Resized or Spacingd definition found in the yaml {yaml_path} ")
+        raise ValueError(f"Not Resized or Spacingd definition found in the yaml {yaml_path}")
 
-    return extracted , spatial_dim 
+    return extracted, spatial_dim 
 
 
-def apply_transforms(image_np,config,original_pixdim=None):
-
+def apply_transforms(image_np, config, original_pixdim=None):
     pixdim = config.get("pixdim", None)
     spacing_mode = config.get("spacing_mode", "nearest")
     spatial_size = config.get("spatial_size", None)
@@ -460,20 +278,13 @@ def apply_transforms(image_np,config,original_pixdim=None):
     if pixdim is not None:
         if original_pixdim is None:
             original_pixdim = [1.0] * spatial_dims
-
-        spacing_transform = Spacing(
-            pixdim=pixdim[:spatial_dims],
-            mode=spacing_mode,
-        )
-
+        spacing_transform = Spacing(pixdim=pixdim[:spatial_dims], mode=spacing_mode)
         tensor = spacing_transform(tensor)
 
     if spatial_size is not None:
-        resize_transform = Resize(
-            spatial_size=spatial_size[:spatial_dims],
-            mode=resize_mode,
-        )
+        resize_transform = Resize(spatial_size=spatial_size[:spatial_dims], mode=resize_mode)
         tensor = resize_transform(tensor)
+        
     tensor = tensor.squeeze(0)
     result = tensor.cpu().numpy()
     if np.issubdtype(image_np.dtype, np.integer):
@@ -481,208 +292,100 @@ def apply_transforms(image_np,config,original_pixdim=None):
 
     return result
 
-def evaluation_metrics(anotators_files,
+
+def evaluation_metrics(
     selected_predictions,
     files_prediction,
     output_path,
     selected_gt,
-    save_mask,
-    dilatation,
-    n_pixels,
-    kernel_shape,
     eval_class, 
-    staple_threshold=0.5,
-    gt_mode = 'single',
     yaml_path=None,
     model_dims=None
     ):
 
-    if save_mask: 
-        (selected_predictions.parent / 'Generated_masks').mkdir(parents=True, exist_ok=True)
-    
     if yaml_path is not None:
-        params,_=extract_params(yaml_path,model_dims) 
-
-    
-    headers = [folder.split('_')[-1] for folder in anotators_files]
-    headers.extend(['Union','Intersection','Staple','Model'])
-    headers.insert(0,'image_id')
-    jacci_head = []
-    for head in headers:
-        if head != 'image_id' and head != 'Model':
-            jacci_head.append(head+'_jaccard')
-    jacci_head.append('annotators_agree_jaccard')
-    jacci_head.append('annotators_model_agree_jaccard')     
-    headers.extend(jacci_head) 
+        params, _ = extract_params(yaml_path, model_dims) 
 
     eval_id = str(selected_predictions).split('_')[-1]
-    n_annotators = len(anotators_files)
     
     image_id = []
     counts_model = []
-    counts_folder = []
-    counts_unions = []
-    counts_intersections = []
-    counts_staple = []
-    all_jaccard_indices = []
-    all_hausdorff_distances = []
-    all_mean_surface_distance = [] 
+    counts_gt = []
+    all_jaccard = []
+    all_hausdorff = []
+    all_msd = [] 
     all_biou = []
     all_oca = []
-    all_sensitivity = []
-    all_specificity = []  
 
-    for fn in tqdm(files_prediction, desc= "Evaluation process"):
+    for fn in tqdm(files_prediction, desc="Evaluation process"):
         stem_file = fn.stem.replace('_segPred','')
         image_id.append(stem_file)
 
-        if dilatation is None:
-            model_pred = binarizar_matrix(extract_class(read_file(fn), eval_class))   
-        else:
-            model_pred = thicken_segmentation_skimage(binarizar_matrix(extract_class(read_file(fn), eval_class)),n_pixels,kernel_shape)      
-        counts_model.append(count_components(model_pred)) 
-        annotations = []
-        count_folder = []
-        for folder in anotators_files:
-            tiff_file = str(stem_file)+'.tiff'
-            tif_file = str(stem_file)+'.tif'
-            try:
-                ann_im = read_file(selected_gt / folder / tiff_file)
-            except Exception as e:
-                try:
-                    ann_im = read_file(selected_gt / folder / tif_file) 
-                except Exception as e:
-                    raise ValueError(f"Error founding {stem_file} in {folder}.")
-            if yaml_path is None:        
-                if model_pred.shape != ann_im.shape:
-                    raise ValueError(f"Image {stem_file} has different shape for {folder} model prediction {model_pred.shape} differ from {ann_im.shape}.")
-
-            if  gt_mode == 'single':
-                ann_im = binarizar_matrix(ann_im)
-            else:
-                ann_im = binarizar_matrix(extract_class(ann_im, eval_class))    
-
-            if dilatation is not None:
-                ann_im = thicken_segmentation_skimage(binarizar_matrix(ann_im),n_pixels,kernel_shape)    
  
-            if yaml_path is not None:
-                ann_im = apply_transforms(ann_im,params)     
+        model_pred = binarizar_matrix(extract_class(read_file(fn), eval_class))   
 
-            count_folder.append(count_components(ann_im)) 
-            annotations.append(ann_im)
+        counts_model.append(count_components(model_pred)) 
         
-        counts_folder.append(count_folder)
-        if n_annotators >= 2:             
-            union, intersection = combine_binary_masks(annotations)
-            staple_filter = sitk.STAPLEImageFilter()
-            staple_filter.SetMaximumIterations (100)
-            consensus = staple_filter.Execute([sitk.GetImageFromArray(arr) for arr in annotations])
-            staple_mask = sitk.GetArrayFromImage(consensus > staple_threshold).astype(np.uint8) 
-            annotations.extend([union, intersection, staple_mask])
-            all_sensitivity.append(list(staple_filter.GetSensitivity())) 
-            all_specificity.append(list(staple_filter.GetSpecificity()))
-            counts_unions.append(count_components(union)) 
-            counts_intersections.append(count_components(intersection)) 
-            counts_staple.append(count_components(staple_mask))    
-        else:
-            shapeM = annotations[0].shape
-            annotations.extend([np.zeros(shapeM), np.zeros(shapeM), np.zeros(shapeM)])
-            all_sensitivity.append([0]) 
-            all_specificity.append([0])
-            counts_unions.append(0) 
-            counts_intersections.append(0) 
-            counts_staple.append(0)    
-        
-        all_jaccard_indices.append(jaccard_computing(n_annotators,annotations, model_pred))
-        all_hausdorff_distances.append(hausdorff_computing(95,n_annotators,annotations, model_pred))
-        all_mean_surface_distance.append(msd_computing(n_annotators,annotations, model_pred))
-        all_biou.append(boundary_iou_computing(n_annotators,annotations, model_pred))
-        all_oca.append(oca_computing(n_annotators,annotations, model_pred))
+        tiff_file = selected_gt / f"{stem_file}.tiff"
+        tif_file = selected_gt / f"{stem_file}.tif"
+        try:
+            ann_im = read_file(tiff_file if tiff_file.exists() else tif_file)
+        except Exception:
+            raise ValueError(f"Error finding {stem_file} in {selected_gt}.")
             
-        if save_mask and (n_annotators >= 2):
-            OmeTiffWriter.save(data=union, uri=selected_predictions.parent / 'Generated_masks' /fn.name.replace('segPred','union'), dim_order="ZYX")
-            OmeTiffWriter.save(data=intersection, uri=selected_predictions.parent / 'Generated_masks' /fn.name.replace('segPred','intersection'), dim_order="ZYX")
-            OmeTiffWriter.save(data=staple_mask, uri=selected_predictions.parent / 'Generated_masks' /fn.name.replace('segPred','staple_mask'), dim_order="ZYX")
+        if yaml_path is None:        
+            if model_pred.shape != ann_im.shape:
+                raise ValueError(f"Image {stem_file} has different shape for Ground Truth model prediction {model_pred.shape} differ from {ann_im.shape}.")
 
-    transposed_counts_folder = list(zip(*counts_folder))
-    data = {headers[0]: image_id} 
+        ann_im = binarizar_matrix(extract_class(ann_im, eval_class))    
+ 
+        if yaml_path is not None:
+            ann_im = apply_transforms(ann_im, params)     
 
-    annotator_headers = headers[1:len(anotators_files) + 1]
-    for i, header in enumerate(annotator_headers):
-        data[header] = list(transposed_counts_folder[i])
+        counts_gt.append(count_components(ann_im)) 
+        
+        # Computations directly against the single GT
+        all_jaccard.append(jaccard_computing(model_pred, ann_im))
+        all_hausdorff.append(hausdorff_computing(95, model_pred, ann_im))
+        all_msd.append(msd_computing(model_pred, ann_im))
+        all_biou.append(boundary_iou(model_pred, ann_im))
+        all_oca.append(overall_contour_agreement(model_pred, ann_im))
 
-    data['Union'] = counts_unions
-    data['Intersection'] = counts_intersections
-    data['Staple'] = counts_staple
-    data['Model'] = counts_model
-
-    transposed_jaccard = list(zip(*all_jaccard_indices))
-    for i, header in enumerate(jacci_head):
-       data[header] = list(transposed_jaccard[i])
-
+    data = {
+        'image_id': image_id,
+        'Ground_Truth': counts_gt,
+        'Model': counts_model,
+        'Ground_Truth_jaccard': all_jaccard,
+        'Ground_Truth_hausdorff': all_hausdorff,
+        'Ground_Truth_msd': all_msd,
+        'Ground_Truth_biou': all_biou,
+        'Ground_Truth_oca': all_oca
+    }
+    
     df = pd.DataFrame(data)
     
-    jaccard_columns = [col for col in df.columns if col.endswith('_jaccard')]
-    for j_col in jaccard_columns:
-        dice_col = j_col.replace('_jaccard', '_dice')
-        df[dice_col] = df[j_col].apply(lambda j: (2 * j) / (1 + j) if j >= 0 else 0)
+    df['Ground_Truth_dice'] = df['Ground_Truth_jaccard'].apply(lambda j: (2 * j) / (1 + j) if j >= 0 else 0)
     
-    transposed_hausdorff = list(zip(*all_hausdorff_distances)) 
-    for i, j_col in enumerate(jaccard_columns):
-        hausdorff_col = j_col.replace('_jaccard', '_hausdorff')
-        df[hausdorff_col] = list(transposed_hausdorff[i])
-
-    transposed_mean_surface_distance = list(zip(*all_mean_surface_distance)) 
-    for i, j_col in enumerate(jaccard_columns):
-        mean_surface_distance_col = j_col.replace('_jaccard', '_msd')
-        df[mean_surface_distance_col] = list(transposed_mean_surface_distance[i])
-        
-    transposed_biou = list(zip(*all_biou)) 
-    for i, j_col in enumerate(jaccard_columns):
-        biou_col = j_col.replace('_jaccard', '_biou')
-        df[biou_col] = list(transposed_biou[i])
-
-    transposed_oca = list(zip(*all_oca)) 
-    for i, j_col in enumerate(jaccard_columns):
-        oca_col = j_col.replace('_jaccard', '_oca')
-        df[oca_col] = list(transposed_oca[i])
-    
-    transposed_sensitivity = list(zip(*all_sensitivity))
-    for i ,col in enumerate(headers[1:n_annotators+1]):  
-        sens_col = col+'_sensivity'
-        df[sens_col] = list(transposed_sensitivity[i])
-    
-    transposed_specificity = list(zip(*all_specificity))
-    for i ,col in enumerate(headers[1:n_annotators+1]):  
-        spe_col = col+'_specificity'
-        df[spe_col] = list(transposed_specificity[i])
-    
-    if n_annotators < 2:
-        cols_to_keep = ['image_id', headers[1], 'Model']
-        base_ann = headers[1]
-        for metric in ['_jaccard', '_dice', '_hausdorff', '_msd', '_biou', '_oca']:
-            col_name = base_ann + metric
-            if col_name in df.columns:
-                cols_to_keep.append(col_name)
-        df = df[cols_to_keep]
+    # Reorder columns intuitively
+    cols_to_keep = ['image_id', 'Ground_Truth', 'Model', 
+                    'Ground_Truth_jaccard', 'Ground_Truth_dice', 'Ground_Truth_hausdorff', 
+                    'Ground_Truth_msd', 'Ground_Truth_biou', 'Ground_Truth_oca']
+    df = df[cols_to_keep]
         
     csv_filename = f'model_evaluation_{eval_id}.csv'
     csv_path = output_path / csv_filename
     df.to_csv(csv_path, index=False)
 
-##################################################### summary plot fucntions ################################################################
+
+##################################################### summary plot functions ################################################################
 def save_summary_plots(df, folder_path, is_single=True):
     if df.empty:
         return
 
     label_col = 'Statistic' if 'Statistic' in df.columns else 'id'
-    
-    if is_single and label_col == 'Statistic':
-        plot_df = df[df[label_col] == 'mean']
-    else:
-        plot_df = df
+    plot_df = df[df[label_col] == 'mean'] if is_single and label_col == 'Statistic' else df
 
-    if len(df.columns) <= 7:
+    if len(df.columns) <= 10: # Increased threshold naturally since GT is directly merged
         m_jaccard = [c for c in df.columns if 'jaccard' in c.lower()]
         m_dice = [c for c in df.columns if 'dice' in c.lower()]
         m_hausdorff = [c for c in df.columns if 'hausdorff' in c.lower()]
@@ -733,21 +436,18 @@ def save_summary_plots(df, folder_path, is_single=True):
         ax2.set_ylabel('Distance Metrics (Hausdorff / MSD)↓', color='red', fontsize=12, fontweight='bold')
         ax2.tick_params(axis='y', labelcolor='red')
 
-        plt.title('Model Comparison ', fontsize=14, pad=20)
+        plt.title('Model Comparison', fontsize=14, pad=20)
         ax1.set_xticks(x)
         ax1.set_xticklabels([m[0] for m in metrics_list], fontsize=11)
         ax1.set_xlabel('Evaluation Metrics', fontsize=12)
         
         ax1.legend(handles=legend_handles, title="Models", loc='upper left', bbox_to_anchor=(1.15, 1))
-        
         ax1.grid(axis='y', linestyle='--', alpha=0.3)
         plt.tight_layout()
         
         save_name = folder_path / "summary_plot.png"
         plt.savefig(save_name, dpi=300)
         plt.close()
-        print(f"Generated dual-axis bar plot: {save_name}")
-
     else:
         metrics = {
             'Jaccard': '_jaccard',
@@ -759,19 +459,13 @@ def save_summary_plots(df, folder_path, is_single=True):
         }
 
         label_col = 'Statistic' if 'Statistic' in df.columns else 'id'
-        
-        if is_single:
-            plot_df = df[df[label_col] == 'mean']
-        else:
-            plot_df = df
+        plot_df = df[df[label_col] == 'mean'] if is_single else df
 
         num_curves = len(plot_df)
         colors = plt.cm.tab20(np.linspace(0, 1, num_curves))
         for title, suffix in metrics.items():
             relevant_cols = [c for c in df.columns if c.endswith(suffix)]
-            
-            if not relevant_cols:
-                continue
+            if not relevant_cols: continue
 
             plt.figure(figsize=(12, 7))
             x_labels = [c.replace(suffix, '') for c in relevant_cols]
@@ -779,15 +473,12 @@ def save_summary_plots(df, folder_path, is_single=True):
             for i, (_, row) in enumerate(plot_df.iterrows()):
                 label = row[label_col]
                 values = row[relevant_cols].values
-                plt.plot(x_labels, values, marker='o', label=label,color=colors[i])
+                plt.plot(x_labels, values, marker='o', label=label, color=colors[i])
 
-            if title in ['Dice', 'Jaccard', 'BIoU', 'OCA']:
-                titlef = f'Summary of {title} Metrics ↑' 
-            else:
-                titlef = f'Summary of {title} Metrics ↓' 
+            titlef = f'Summary of {title} Metrics ↑' if title in ['Dice', 'Jaccard', 'BIoU', 'OCA'] else f'Summary of {title} Metrics ↓' 
 
             plt.title(titlef)
-            plt.xlabel('Annotator')
+            plt.xlabel('Ground Truth vs Model')
             plt.ylabel('Mean')
             plt.xticks(rotation=45)
             plt.grid(True, linestyle='--', alpha=0.6)
@@ -798,6 +489,7 @@ def save_summary_plots(df, folder_path, is_single=True):
             save_name = folder_path / f"summary_plot_{title.lower()}.png"
             plt.savefig(save_name,dpi=300)
             plt.close()
+
 
 def process_single_folder(folder_path: Path):
     mean_data = []
@@ -816,7 +508,6 @@ def process_single_folder(folder_path: Path):
     input_csv_files = [f for f in csv_files if f.name not in output_filenames]
     
     if not input_csv_files:
-        print(f"No valid .csv files found in {folder_path}")
         return
 
     for file in tqdm(input_csv_files, desc=f"Summary process ({folder_path.name})"):
@@ -825,12 +516,10 @@ def process_single_folder(folder_path: Path):
             df = pd.read_csv(file)
 
             if 'Model' not in df.columns:
-                print(f"Warning: File {file.name} does not have a 'Model' column. Skipping.")
                 continue
 
             model_index = df.columns.get_loc('Model')
             target_cols = df.columns[model_index + 1:]
-            
             filtered_df = df[target_cols]
 
             mean_series = filtered_df.mean(numeric_only=True)
@@ -853,9 +542,7 @@ def process_single_folder(folder_path: Path):
             print(f"Error processing {file.name}: {e}")
 
     processed_count = len(mean_data)
-    
     if processed_count == 0:
-        print(f"No valid input files were processed in {folder_path.name}. Exiting folder.")
         return
 
     if processed_count == 1:        
@@ -880,21 +567,15 @@ def process_single_folder(folder_path: Path):
         output_path = folder_path / 'single_summary.csv' 
         df_single.to_csv(output_path, index=False)
         save_summary_plots(df_single, folder_path, is_single=True)
-        print(f"Generated single summary: {output_path}")
         return 
 
     def save_summary(data_list, filename):
-        if not data_list:
-            return None
-        
+        if not data_list: return None
         summary_df = pd.DataFrame(data_list)
         cols = ['id'] + [c for c in summary_df.columns if c != 'id']
         summary_df = summary_df[cols]
-        
         output_path = folder_path / filename
         summary_df.to_csv(output_path, index=False)
-        print(f"Generated: {output_path}")
-        
         return summary_df
 
     df_mean_all = save_summary(mean_data, 'mean_summary.csv')
@@ -904,11 +585,8 @@ def process_single_folder(folder_path: Path):
     df_var_all = save_summary(var_data, 'variance_summary.csv')
 
     min_max_rows = []
-
     def extract_min_max_ids(df, metric_name):
-        if df is None or df.empty:
-            return
-        
+        if df is None or df.empty: return
         df_indexed = df.set_index('id')
         row_min = {'Statistic': f'min_{metric_name}'}
         row_max = {'Statistic': f'max_{metric_name}'}
@@ -921,34 +599,21 @@ def process_single_folder(folder_path: Path):
                 row_min[col] = 'independent of model election'
                 row_max[col] = 'independent of model election'  
             else:
-                min_ids = df_indexed.index[df_indexed[col] == min_val].tolist()
-                row_min[col] = ",".join(map(str, min_ids))
+                row_min[col] = ",".join(map(str, df_indexed.index[df_indexed[col] == min_val].tolist()))
+                row_max[col] = ",".join(map(str, df_indexed.index[df_indexed[col] == max_val].tolist()))
 
-                max_ids = df_indexed.index[df_indexed[col] == max_val].tolist()
-                row_max[col] = ",".join(map(str, max_ids))
+        min_max_rows.extend([row_min, row_max])
 
-        min_max_rows.append(row_min)
-        min_max_rows.append(row_max)
-
-    if df_mean_all is not None:
-        extract_min_max_ids(df_mean_all, 'mean')
-    
-    if df_std_all is not None:
-        extract_min_max_ids(df_std_all, 'std')
-
-    if df_var_all is not None:
-        extract_min_max_ids(df_var_all, 'variance')
+    if df_mean_all is not None: extract_min_max_ids(df_mean_all, 'mean')
+    if df_std_all is not None: extract_min_max_ids(df_std_all, 'std')
+    if df_var_all is not None: extract_min_max_ids(df_var_all, 'variance')
 
     if min_max_rows:
         df_min_max = pd.DataFrame(min_max_rows)
         cols = ['Statistic'] + [c for c in df_min_max.columns if c != 'Statistic']
         df_min_max = df_min_max[cols]
-        
         final_path = folder_path / 'min_max_summary.csv'
         df_min_max.to_csv(final_path, index=False)
-        print(f"Generated: {final_path}")
-    else:
-        print("Could not generate min_max_summary.csv.")
 
 
 def generate_statistical_summaries(folder_path: Path):
@@ -961,62 +626,24 @@ def generate_statistical_summaries(folder_path: Path):
     ]
     
     root_csvs = [f for f in folder_path.glob('*.csv') if f.name not in output_filenames]
-    
     if root_csvs:
-        print(f"Found .csv files in the main folder. Processing: {folder_path.name}")
         process_single_folder(folder_path)
     else:
         subdirs = [d for d in folder_path.iterdir() if d.is_dir()]
-        
-        if not subdirs:
-            print(f"No .csv files or subdirectories found in {folder_path}")
-            return
-            
-        print(f"No direct .csv files found in main folder. Checking subdirectories...")
-        processed_any = False
-        
         for subdir in subdirs:
             subdir_csvs = [f for f in subdir.glob('*.csv') if f.name not in output_filenames]
             if subdir_csvs:
-                print(f"\n--- Processing subfolder: {subdir.name} ---")
                 process_single_folder(subdir)
-                processed_any = True
-            else:
-                print(f"Skipping {subdir.name} (no valid .csv files found)")
-                
-        if not processed_any:
-            print("No valid .csv files found in any subdirectories either.")
 
-##################################################### single plot fucntions ################################################################
-def plot_curves(dataframe, columns, title, filename, color_list_or_map,y_label):
+
+##################################################### single plot functions ################################################################
+def plot_curves(dataframe, columns, title, filename, color_list_or_map, y_label):
     plt.figure(figsize=(12, 7))
-
-    stats_text = ""
-    if 'Agreement' in title:
-        if len(columns) >= 2:
-            col_annotators = columns[0] 
-            col_annotators_model = columns[1]
-            mean_ann = dataframe[col_annotators].mean()
-            std_ann = dataframe[col_annotators].std()
-            
-            mean_ann_model = dataframe[col_annotators_model].mean()
-            std_ann_model = dataframe[col_annotators_model].std()
-            
-            stats_text = (
-                f"\n\n"
-                f"mean_annotators: {mean_ann:.4f}\n"
-                f"std_annotators: {std_ann:.4f}\n\n"
-                f"mean_annotators_model: {mean_ann_model:.4f}\n"
-                f"std_annotators_model: {std_ann_model:.4f}\n"
-            )
 
     legend_handles = []
     legend_labels = []
 
-    if isinstance(color_list_or_map, list):
-        colors_to_use = color_list_or_map
-    else:
-        colors_to_use = [color_list_or_map(i) for i in range(len(columns))]
+    colors_to_use = color_list_or_map if isinstance(color_list_or_map, list) else [color_list_or_map(i) for i in range(len(columns))]
 
     for i, col in enumerate(columns):
         color = colors_to_use[i % len(colors_to_use)]
@@ -1026,14 +653,14 @@ def plot_curves(dataframe, columns, title, filename, color_list_or_map,y_label):
     plt.xlabel('Images', fontsize=12)
     plt.ylabel(y_label, fontsize=12)
     
-    legend_title = f"Columns{stats_text}"
-    plt.legend(handles=legend_handles, labels=legend_labels, title=legend_title, 
+    plt.legend(handles=legend_handles, labels=legend_labels, title="Columns", 
                bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
     plt.grid(False) 
     plt.tight_layout(rect=[0, 0, 0.85, 1])
     plt.savefig(filename, dpi=300)
     plt.close()
+
 
 def plot_distributions(dataframe, columns, title, filename_base, y_label):
     data_to_plot = [dataframe[col].dropna().values for col in columns]
@@ -1051,9 +678,7 @@ def plot_distributions(dataframe, columns, title, filename_base, y_label):
 
     plt.figure(figsize=(10, 6))
     plt.violinplot(data_to_plot, showmeans=True, showmedians=False, showextrema=True)
-    
     plt.xticks(np.arange(1, len(column_labels) + 1), column_labels, ha='right')
-    
     plt.title(title, fontsize=16)
     plt.ylabel(y_label, fontsize=12)
     plt.grid(False)
@@ -1062,128 +687,35 @@ def plot_distributions(dataframe, columns, title, filename_base, y_label):
     plt.savefig(f'{filename_base}_violinplot.png', dpi=300)
     plt.close()
 
+
 def graph_generator(input_path):
-    
     df = pd.read_csv(input_path)
     eval_id = str(input_path.name).replace('model_evaluation_','').replace('.csv','')
     output_path = input_path.parent
     (output_path / (eval_id +'_graphs')).mkdir(parents=True, exist_ok=True) 
 
-    
-    columns = df.columns.tolist()
-    model_index = columns.index('Model')
-    number_mid_cols = model_index - 1
-    if number_mid_cols == 1:
-        n_annotators = 1
-    else:    
-        n_annotators = number_mid_cols - 3
+    counts_ann = ['Ground_Truth', 'Model']
+    jaccard_ann = [c for c in df.columns if c.endswith('_jaccard')]
+    dice_ann = [c for c in df.columns if c.endswith('_dice')]
+    hausdorff_ann = [c for c in df.columns if c.endswith('_hausdorff')]
+    msd_ann = [c for c in df.columns if c.endswith('_msd')]
+    biou_ann = [c for c in df.columns if c.endswith('_biou')]
+    oca_ann = [c for c in df.columns if c.endswith('_oca')]
 
-    if n_annotators >= 2:
-        counts_ann = df.columns[1:n_annotators+1].tolist() + ['Model']
-        counts_gen = df.columns[n_annotators+1:n_annotators+4].tolist()
+    colors = plt.cm.get_cmap('tab10', max(len(jaccard_ann), len(dice_ann)))
 
-        jaccard_cols = [c for c in df.columns if c.endswith('_jaccard')]
-        dice_cols = [c for c in df.columns if c.endswith('_dice')]
-        hausdorff_cols = [c for c in df.columns if c.endswith('_hausdorff')]
-        msd_cols = [c for c in df.columns if c.endswith('_msd')]
-        biou_cols = [c for c in df.columns if c.endswith('_biou')]
-        oca_cols = [c for c in df.columns if c.endswith('_oca')]
+    plot_curves(df, counts_ann, 'Ground Truth vs Model Findings', output_path / (eval_id +'_graphs') / 'gt_model_findings.png', ['blue', 'green'], 'Findings')
+    plot_curves(df, jaccard_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_jaccard.png', colors, 'Jaccard index')
+    plot_curves(df, dice_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_dice.png', colors, 'Dice index')
+    plot_curves(df, hausdorff_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_hausdorff.png', colors, 'Hausdorff distance')
+    plot_curves(df, msd_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_msd.png', colors, 'Mean surface distance')
+    plot_curves(df, biou_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_biou.png', colors, 'Boundary IoU')
+    plot_curves(df, oca_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_oca.png', colors, 'Overall Contour Agreement')
 
-        def get_ann_gen_agree(metric_cols):
-            ann = metric_cols[:n_annotators]
-            gen = metric_cols[n_annotators:n_annotators+3]
-            agree = metric_cols[-2:]
-            return ann, gen, agree
-
-        jaccard_ann, jaccard_gen, jaccard_agree = get_ann_gen_agree(jaccard_cols)
-        dice_ann, dice_gen, dice_agree = get_ann_gen_agree(dice_cols)
-        hausdorff_ann, hausdorff_gen, hausdorff_agree = get_ann_gen_agree(hausdorff_cols)
-        msd_ann, msd_gen, msd_agree = get_ann_gen_agree(msd_cols)
-        biou_ann, biou_gen, biou_agree = get_ann_gen_agree(biou_cols)
-        oca_ann, oca_gen, oca_agree = get_ann_gen_agree(oca_cols)
-
-        sensitivity_ann = [c for c in df.columns if c.endswith('_sensivity')]
-        specificity_ann = [c for c in df.columns if c.endswith('_specificity')]
-
-        colors = plt.cm.get_cmap('tab10', max(len(jaccard_ann), len(dice_ann)))
-
-        plot_curves(df,counts_ann,'Annotators vs Model Findings', output_path / (eval_id +'_graphs') / 'annotators_model_findings.png', colors,'Findings')
-        plot_curves(df,counts_gen,'Generated Masks vs Model Findings', output_path / (eval_id +'_graphs') / 'generated_masks_model_findings.png', colors,'Findings')
-        
-        plot_curves(df,jaccard_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_jaccard.png', colors,'Jaccard index')
-        plot_curves(df,dice_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_dice.png', colors,'Dice index')
-        plot_curves(df,hausdorff_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_hausdorff.png', colors,'Hausdorff distance')
-        plot_curves(df,msd_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_msd.png', colors,'Mean surface distance')
-        plot_curves(df,biou_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_biou.png', colors,'Boundary IoU')
-        plot_curves(df,oca_ann,'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_oca.png', colors,'Overall Contour Agreement')
-        
-        plot_curves(df,jaccard_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_jaccard.png', colors,'Jaccard index')
-        plot_curves(df,dice_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_dice.png', colors,'Dice index')
-        plot_curves(df,hausdorff_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_hausdorff.png', colors,'Hausdorff distance')
-        plot_curves(df,msd_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_msd.png', colors,'Mean surface distance')
-        plot_curves(df,biou_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_biou.png', colors,'Boundary IoU')
-        plot_curves(df,oca_gen,'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_oca.png', colors,'Overall Contour Agreement')
-
-        plot_curves(df,jaccard_agree,'Jaccard Agreement', output_path / (eval_id +'_graphs') / 'agreement_jaccard.png', colors,'Jaccard index')
-        plot_curves(df,dice_agree,'Dice Agreement', output_path / (eval_id +'_graphs') / 'agreement_dice.png', colors,'Dice index')
-        plot_curves(df,hausdorff_agree,'Hausdorff Agreement', output_path / (eval_id +'_graphs') / 'agreement_hausdorff.png', colors,'Hausdorff distance')
-        plot_curves(df,msd_agree,'Mean surface Agreement', output_path / (eval_id +'_graphs') / 'agreement_msd.png', colors,'Mean surface distance')
-        plot_curves(df,biou_agree,'Boundary IoU Agreement', output_path / (eval_id +'_graphs') / 'agreement_biou.png', colors,'Boundary IoU')
-        plot_curves(df,oca_agree,'Overall Contour Agreement', output_path / (eval_id +'_graphs') / 'agreement_oca.png', colors,'Overall Contour Agreement')
-
-        plot_curves(df,sensitivity_ann,'STAPLE Sensitivity', output_path / (eval_id +'_graphs') / 'staple_sensitivity.png', colors,'Sensitivity')
-        plot_curves(df,specificity_ann,'STAPLE Specificity', output_path / (eval_id +'_graphs') / 'staple_specificity.png', colors,'Specificity')
-        
-        plot_distributions(df, counts_ann, 'Annotators vs Model Findings', output_path / (eval_id +'_graphs') / 'annotators_model_findings', 'Findings')
-        plot_distributions(df, counts_gen, 'Generated Masks vs Model Findings', output_path / (eval_id +'_graphs') / 'generated_masks_model_findings', 'Findings')
-
-        plot_distributions(df, jaccard_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_jaccard', 'Jaccard Index')
-        plot_distributions(df, dice_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_dice', 'Dice Index')
-        plot_distributions(df, hausdorff_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_hausdorff', 'Hausdorff distance')
-        plot_distributions(df, msd_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_msd', 'Mean surface distance')
-        plot_distributions(df, biou_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_biou', 'Boundary IoU')
-        plot_distributions(df, oca_ann, 'Annotators vs Model', output_path / (eval_id +'_graphs') / 'annotators_model_oca', 'Overall Contour Agreement')
-
-        plot_distributions(df, jaccard_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_jaccard', 'Jaccard Index')
-        plot_distributions(df, dice_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_dice', 'Dice Index')
-        plot_distributions(df, hausdorff_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_hausdorff', 'Hausdorff distance')
-        plot_distributions(df, msd_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_msd', 'Mean surface distance')
-        plot_distributions(df, biou_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_biou', 'Boundary IoU')
-        plot_distributions(df, oca_gen, 'Generated Mask vs Model', output_path / (eval_id +'_graphs') / 'generated_masks_model_oca', 'Overall Contour Agreement')
-
-        plot_distributions(df, jaccard_agree, 'Jaccard Agreement', output_path / (eval_id +'_graphs') / 'agreement_jaccard', 'Jaccard Index')
-        plot_distributions(df, dice_agree, 'Dice Agreement', output_path / (eval_id +'_graphs') / 'agreement_dice', 'Dice Index')
-        plot_distributions(df, hausdorff_agree, 'Hausdorff Agreement', output_path / (eval_id +'_graphs') / 'agreement_hausdorff', 'Hausdorff distance')
-        plot_distributions(df, msd_agree, 'Mean surface Agreement', output_path / (eval_id +'_graphs') / 'agreement_msd', 'Mean surface distance')
-        plot_distributions(df, biou_agree, 'Boundary IoU Agreement', output_path / (eval_id +'_graphs') / 'agreement_biou', 'Boundary IoU')
-        plot_distributions(df, oca_agree, 'Overall Contour Agreement', output_path / (eval_id +'_graphs') / 'agreement_oca', 'Overall Contour Agreement')
-
-        plot_distributions(df, sensitivity_ann, 'STAPLE Sensitivity', output_path / (eval_id +'_graphs') / 'staple_sensitivity', 'Sensitivity')
-        plot_distributions(df, specificity_ann, 'STAPLE Specificity', output_path / (eval_id +'_graphs') / 'staple_specificity', 'Specificity')
-    else:
-        counts_ann = [df.columns[1], 'Model']
-        jaccard_ann = [c for c in df.columns if c.endswith('_jaccard')]
-        dice_ann = [c for c in df.columns if c.endswith('_dice')]
-        hausdorff_ann = [c for c in df.columns if c.endswith('_hausdorff')]
-        msd_ann = [c for c in df.columns if c.endswith('_msd')]
-        biou_ann = [c for c in df.columns if c.endswith('_biou')]
-        oca_ann = [c for c in df.columns if c.endswith('_oca')]
-
-        colors = plt.cm.get_cmap('tab10', max(len(jaccard_ann), len(dice_ann)))
-
-        plot_curves(df,counts_ann,'Annotator vs Model Findings', output_path / (eval_id +'_graphs') / 'annotator_model_findings.png', ['blue', 'green'],'Findings')
-        plot_curves(df,jaccard_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_jaccard.png', colors,'Jaccard index')
-        plot_curves(df,dice_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_dice.png', colors,'Dice index')
-        plot_curves(df,hausdorff_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_hausdorff.png', colors,'Hausdorff distance')
-        plot_curves(df,msd_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_msd.png', colors,'Mean surface distance')
-        plot_curves(df,biou_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_biou.png', colors,'Boundary IoU')
-        plot_curves(df,oca_ann,'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_oca.png', colors,'Overall Contour Agreement')
-
-        plot_distributions(df, counts_ann, 'Annotator vs Model Findings', output_path / (eval_id +'_graphs') / 'annotator_model_findings', 'Findings')
-        plot_distributions(df, jaccard_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_jaccard', 'Jaccard Index')
-        plot_distributions(df, dice_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_dice', 'Dice Index')
-        plot_distributions(df, hausdorff_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_hausdorff', 'Hausdorff distance')
-        plot_distributions(df, msd_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_msd', 'Mean surface distance')
-        plot_distributions(df, biou_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_biou', 'Boundary IoU')
-
-        plot_distributions(df, oca_ann, 'Annotator vs Model', output_path / (eval_id +'_graphs') / 'annotator_model_oca', 'Overall Contour Agreement')
+    plot_distributions(df, counts_ann, 'Ground Truth vs Model Findings', output_path / (eval_id +'_graphs') / 'gt_model_findings', 'Findings')
+    plot_distributions(df, jaccard_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_jaccard', 'Jaccard Index')
+    plot_distributions(df, dice_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_dice', 'Dice Index')
+    plot_distributions(df, hausdorff_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_hausdorff', 'Hausdorff distance')
+    plot_distributions(df, msd_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_msd', 'Mean surface distance')
+    plot_distributions(df, biou_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_biou', 'Boundary IoU')
+    plot_distributions(df, oca_ann, 'Ground Truth vs Model', output_path / (eval_id +'_graphs') / 'gt_model_oca', 'Overall Contour Agreement')

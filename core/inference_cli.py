@@ -26,7 +26,7 @@ from tqdm import tqdm
 import gc
 import torch
 from mmv_im2im.configs.config_base import ProgramConfig, configuration_validation
-from mmv_im2im.map_extractor import MapExtractor
+from mmv_im2im.proj_tester import ProjectTester
 
 logger = getLogger(__name__)
 T = TypeVar("T")
@@ -201,7 +201,7 @@ def run_single_inference(cfg_obj, ckpt_path, output_dir_path):
         cfg_obj.data.inference_output.path.mkdir(parents=True, exist_ok=True)
         
         cfg_obj = configuration_validation(cfg_obj)
-        exe = MapExtractor(cfg_obj)
+        exe = ProjectTester(cfg_obj)
         exe.run_inference()
         
         del exe
@@ -240,36 +240,13 @@ def main():
     except Exception as e:
         print(f"Failed to load YAML configuration: {e}")
         sys.exit(1)
-    
-    # Automatically handle dynamic parameter injection based on YAML contents
-    spatial_dims = base_cfg.model.net.get('params', {}).get('spatial_dims', 2)
 
-    if 'ProbUnet' in base_cfg.model.framework:
+    spatial_dims = base_cfg.model.net.get('params', {}).get('spatial_dims', None)
+
+    if 'ProbUnet' in base_cfg.model.framework and spatial_dims is None:
         base_cfg.model.framework = base_cfg.model.framework + '_old'
         base_cfg.model.net['module_name'] = base_cfg.model.net['module_name'] + '_old'
 
-    if spatial_dims == 3:
-        inference_mode = 'vol2vol'
-        print(f"Info: Spatial dimensions = 3. Using volumetric inference mode ({inference_mode}).")
-    else:
-        inference_mode = 'vol2slice'
-        print(f"Info: Spatial dimensions = 2. Using slice-based inference mode ({inference_mode}).")
-
-    if 'pred_slice2vol' not in base_cfg.model.net:
-        base_cfg.model.net['pred_slice2vol'] = {}
-
-    yaml_max_proj = base_cfg.model.net['pred_slice2vol'].get('max_proj', False)
-    if inference_mode == 'vol2vol' and yaml_max_proj:
-        base_cfg.model.net['pred_slice2vol']['max_proj'] = False
-        print("Info: Max projection disabled due to vol2vol inference mode.")
-
-    base_cfg.model.net['pred_slice2vol']['jupyter'] = False
-    base_cfg.model.net['pred_slice2vol']['inference_mode'] = inference_mode
-
-    if '_old' in base_cfg.model.framework:
-        base_cfg.model.net['pred_slice2vol']['n_class_correction'] = base_cfg.model.net.get('params', {}).get('n_classes', 1)
-    else:
-        base_cfg.model.net['pred_slice2vol']['n_class_correction'] = base_cfg.model.net.get('params', {}).get('out_channels', 1)
     base_cfg.data.inference_input.dir = Path(args.images_folder)
     # ---------------------------------------------------------
     # Execution Routing

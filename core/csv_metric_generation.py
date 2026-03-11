@@ -3,36 +3,35 @@ from pathlib import Path
 from evaluationFunctions import evaluation_metrics, add_missing_files
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Evaluation Metrics on masks")
+    parser = argparse.ArgumentParser(description="Run Evaluation Metrics on masks directly against a single Ground Truth folder")
     
     # Paths
-    parser.add_argument('--gt-path', type=str, required=True, help='Select ground truth folder')
+    parser.add_argument('--gt-path', type=str, required=True, help='Select ground truth folder containing the GT images')
     parser.add_argument('--predictions-path', type=str, required=True, help='Select model predictions folder')
     parser.add_argument('--yaml-path', type=str, default=None, help='Select yaml training file for multi shape transformations')
     parser.add_argument('--out-name', type=str, default='Evaluation_output', help='Output folder name (optional)')
     
     # Model and Class configurations
     parser.add_argument('--model-dims', type=int, choices=[2, 3], default=2, help='Spatial model dimension (2D or 3D)')
-    parser.add_argument('--gt-mode', type=str, choices=['single', 'multiclass'], default='single', help='GT class annotations')
-    parser.add_argument('--eval-mode', type=str, choices=['single', 'all'], default='single', help='Evaluation class mode')
     parser.add_argument('--eval-class', type=int, default=1, help='Evaluation Class')
-    parser.add_argument('--staple-threshold', type=float, default=0.5, help='STAPLE Threshold')
     
     # Booleans / Flags
-    parser.add_argument('--use-dilatation', action='store_true', help='Flag to use dilatation')
-    parser.add_argument('--dilation-pixels', type=int, default=3, help='Radius for dilatation')
-    parser.add_argument('--dilation-mode', type=str, choices=['disk', 'square'], default='disk', help='Mode for dilatation')
     parser.add_argument('--no-verify-images', action='store_true', help='Pass this flag to SKIP verifying missing images')
-    parser.add_argument('--save-mask', action='store_true', help='Flag to save generated masks')
 
     args = parser.parse_args()
 
-    # Determine yaml/model-dims logic
+    # Configuration mapping
     yaml_path = args.yaml_path
     model_dims = args.model_dims
-    
+    eval_class = args.eval_class
+    verify_images = not args.no_verify_images
+
+    # Paths setup
     selected_gt = Path(args.gt_path)
     base_prediction_path = Path(args.predictions_path)
+    
+    if not selected_gt.is_dir():
+        raise ValueError(f"Ground truth path {selected_gt} is not a valid directory.")
     
     direct_images = sorted(base_prediction_path.glob("*.tiff")) + sorted(base_prediction_path.glob('*.tif'))
     folders_to_process = []
@@ -50,21 +49,7 @@ def main():
         else:
             raise ValueError(f"No .tif/.tiff files or subfolders found in {base_prediction_path}.")
 
-    # Evaluation mode
-    eval_class = args.eval_class if args.eval_mode == 'single' else 'all'
-    verify_images = not args.no_verify_images
-
-    # Annotators files
-    anotators_files = [item.name for item in selected_gt.iterdir() if item.is_dir()]
-    if len(anotators_files) == 0:
-        raise ValueError(f"No ground truth folders found in {selected_gt}.")
-
-    # Dilatation params
-    dilatation = True if args.use_dilatation else None
-    n_pixels = args.dilation_pixels if args.use_dilatation else None
-    kernel_shape = args.dilation_mode if args.use_dilatation else None
-
-    print(f"###################################### { len(anotators_files) } annotators folders found in GT.######################################")
+    print(f"###################################### Using single Ground Truth folder: {selected_gt.name} ######################################")
     
     for current_pred_folder in folders_to_process:
         print(f"\n=================================================================================")
@@ -84,24 +69,19 @@ def main():
         print(f"Found {len(files_prediction)} prediction files.")
         if verify_images: 
             print('--- Looking for missing annotations ---')
-            add_missing_files(files_prediction, anotators_files, selected_gt)
+            add_missing_files(files_prediction, selected_gt)
 
         print('--- Generating evaluation metrics ---')
+        
+        # Calling the newly updated evaluation_metrics function
         evaluation_metrics(
-            anotators_files,
-            current_pred_folder,
-            files_prediction,
-            output_path,
-            selected_gt,
-            args.save_mask,
-            dilatation,
-            n_pixels,
-            kernel_shape, 
-            eval_class, 
-            args.staple_threshold,
-            args.gt_mode,
-            yaml_path,
-            model_dims
+            selected_predictions=current_pred_folder,
+            files_prediction=files_prediction,
+            output_path=output_path,
+            selected_gt=selected_gt,
+            eval_class=eval_class,
+            yaml_path=yaml_path,
+            model_dims=model_dims
         )
         print(f"Completed: {current_pred_folder.name}")
 

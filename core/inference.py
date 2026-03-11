@@ -14,7 +14,7 @@ from pathlib import Path
 import ipywidgets as widgets
 from IPython.display import display
 from mmv_im2im.configs.config_base import ProgramConfig, configuration_validation, parse_adaptor
-from mmv_im2im.map_extractor import MapExtractor
+from mmv_im2im.proj_tester import ProjectTester
 import numpy as np
 from bioio import BioImage
 from bioio.writers import OmeTiffWriter
@@ -229,7 +229,7 @@ def create_inference_menu():
     # --- MULTI MODEL WIDGETS ---
     models_folder_widget = FileChooser(
         Path.cwd().as_posix(),
-        title='Select the training models folder',
+        title='Select the trained models folder',
         select_default=False
     )
     models_folder_widget.show_only_dirs = True
@@ -261,116 +261,13 @@ def create_inference_menu():
     # Input Images
     path_base_widget = FileChooser(
         Path.cwd().as_posix(), 
-        title='Select the images folder',
+        title='Select the input prediction images folder',
         select_default=False 
     )
     path_base_widget.show_only_dirs = True
     path_base_widget.layout = widgets.Layout(width='80%')
 
-    # --- Inference Options --- section
-    inference_header = widgets.Label(
-        value="--- Inference Options ---",
-        style={'font_weight': 'bold'}
-    )
-
-    multi_pred_mode_dropdown = widgets.Dropdown(
-        options={
-            'single': 'single', 
-            'maximum': 'max',
-            'mean': 'mean',
-            'variance': 'var'
-        },
-        value='single', 
-        description='Prediction mode:',
-        disabled=False,
-        style={'description_width':'50%'} 
-    )
-    
-    n_samples_text = widgets.Text(
-        value='1',
-        description='N Samples:',
-        disabled=True,
-        layout=widgets.Layout(width='50%')
-    )
-
-    use_max_proj_checkbox = widgets.Checkbox(
-        value=False,
-        description="Use Max projection",
-        disabled=False
-    )
-
-    # Postprocessing section
-    postprocessing_header = widgets.Label(
-        value="--- Postprocessing Options ---",
-        style={'font_weight': 'bold'}
-    )
-    default_params = {"pixelDimensions": "1.0, 1.0, 1.0"}
-
-    meta_pixel_dim_widget = widgets.Checkbox(
-        value=False,
-        description='Use pixel dimensions from image metadata',
-        indent=True,
-         style={'description_width': '0%'}
-    )
-    
-    pixel_dim_widget = widgets.Text(
-        value=default_params["pixelDimensions"],
-        description='Pixel Dimensions(Z,Y,X):',
-        layout=widgets.Layout(description_width='initial'),
-        style={'description_width': '60%'}
-    )
-
-    apply_thickness_checkbox = widgets.Checkbox(
-        value=False,
-        description="Apply Thickness Adjustment",
-        disabled=False,
-        indent=False
-    )
-    min_thickness_list_text = widgets.Text(
-        value="1000,2", 
-        placeholder="e.g., 1000, 1",
-        description="Min Thicknesses :",
-        disabled=False,
-        layout=widgets.Layout(width='80%')
-    )
-
-    use_remove_objects_checkbox = widgets.Checkbox(
-        value=False,
-        description="Apply Remove Small Objects",
-        disabled=False,
-        indent=False
-    )
-    remove_objects_text = widgets.Text(
-        value="50,30", 
-        placeholder="e.g., 50, 100",
-        description="Sizes :",
-        disabled=False,
-        layout=widgets.Layout(width='80%')
-    )
-    apply_holes_checkbox = widgets.Checkbox(
-        value=False,
-        description="Apply Small Holes Correction",
-        disabled=False,
-        indent=False
-    )
-
-    hole_size_threshold_text = widgets.Text(
-        value="90,90",
-        placeholder="e.g., 15, 30",
-        description="Hole Thresholds :",
-        disabled=False,
-        layout=widgets.Layout(width='80%')
-    )
-
-    apply_pericytes_checkbox = widgets.Checkbox(
-        value=False,
-        description="Apply Round objects Correction",
-        disabled=False,
-        indent=False
-    )
-
-    # --- LOGIC FOR UI INTERACTIVITY ---
-
+   
     def check_yaml(chooser):
         if chooser.selected:
             with open(chooser.selected, "r") as f:
@@ -380,25 +277,6 @@ def create_inference_menu():
                 model_dims_widget.layout.display = 'flex'
             else:
                 model_dims_widget.layout.display = 'none'  
-
-
-    def toggle_thickness_text(change):
-        min_thickness_list_text.layout.display = 'block' if change['new'] else 'none'
-
-    def toggle_remove_objects_text(change):
-        remove_objects_text.layout.display = 'block' if change['new'] else 'none'
-
-    def toggle_hole_threshold_text(change):
-        hole_size_threshold_text.layout.display = 'block' if change['new'] else 'none'
-    
-    def update_n_samples_on_mode_change(change):
-        if change['new'] == 'single':
-            n_samples_text.value = '1'
-            n_samples_text.disabled = True
-        else:
-            if n_samples_text.value == '1':
-                 n_samples_text.value = '10' 
-            n_samples_text.disabled = False
             
     def check_folder_structure():
         if not models_folder_widget.selected:
@@ -473,16 +351,6 @@ def create_inference_menu():
             models_folder_widget.layout.display = 'block'
             output_path_widget.layout.display = 'block'
             update_multimodel_ui()
-
-    # Observers
-    multi_pred_mode_dropdown.observe(update_n_samples_on_mode_change, names='value')
-    min_thickness_list_text.layout.display = 'block' if apply_thickness_checkbox.value else 'none'
-    remove_objects_text.layout.display = 'block' if use_remove_objects_checkbox.value else 'none'
-    hole_size_threshold_text.layout.display = 'block' if apply_holes_checkbox.value else 'none' 
-
-    apply_thickness_checkbox.observe(toggle_thickness_text, names='value')
-    use_remove_objects_checkbox.observe(toggle_remove_objects_text, names='value')
-    apply_holes_checkbox.observe(toggle_hole_threshold_text, names='value')
     
     pipeline_mode_dropdown.observe(toggle_pipeline_mode, names='value')
     models_folder_widget.register_callback(update_multimodel_ui)
@@ -506,12 +374,6 @@ def create_inference_menu():
         weight_options_dropdown,
         custom_weights_container,
         path_base_widget, 
-        inference_header, multi_pred_mode_dropdown, n_samples_text, use_max_proj_checkbox,
-        postprocessing_header,
-        pixel_dim_widget,meta_pixel_dim_widget,  
-        use_remove_objects_checkbox, remove_objects_text,
-        apply_holes_checkbox, hole_size_threshold_text,
-        apply_thickness_checkbox, min_thickness_list_text,apply_pericytes_checkbox, 
         run_button, output
     )
 
@@ -531,7 +393,7 @@ def create_inference_menu():
             cfg_obj.data.inference_output.path.mkdir(parents=True, exist_ok=True)
             
             cfg_obj = configuration_validation(cfg_obj)
-            exe = MapExtractor(cfg_obj)
+            exe = ProjectTester(cfg_obj)
             exe.run_inference()
             
             del exe
@@ -547,21 +409,10 @@ def create_inference_menu():
             
             mode = pipeline_mode_dropdown.value
             selected_yaml = yaml_path_widget.selected
-            selected_path_base = path_base_widget.selected
-            
+            selected_path_base = Path(path_base_widget.selected)            
             if not selected_yaml or not selected_path_base:
                 print("Error: Required paths missing.")
                 return
-
-            # Pixel Dim logic
-            if meta_pixel_dim_widget.value:
-                pixel_dim = 'auto'
-            else:
-                try:
-                    pixel_dim = tuple(float(d.strip()) for d in pixel_dim_widget.value.split(','))
-                except:
-                    print("Error: Invalid Pixel Dimensions.")
-                    return
 
             try:
                 base_cfg = parse_adaptor_jpnb(config_class=ProgramConfig, config=selected_yaml)
@@ -579,45 +430,10 @@ def create_inference_menu():
                 if model_dims_widget.layout.display != 'none' and 'ProbUnet' in base_cfg.model.framework:
                     base_cfg.model.framework = base_cfg.model.framework + '_old'
                     base_cfg.model.net['module_name'] =  base_cfg.model.net['module_name']+'_old'
-
-                if spatial_dims == 3:
-                    inference_mode = 'vol2vol'
-                    print(f"Info: Spatial dimensions = 3. Using volumetric inference mode ({inference_mode}).")
-                else:
-                    inference_mode = 'vol2slice'
-                    print(f"Info: Spatial dimensions = 2. Using slice-based inference mode ({inference_mode}).")
                 
-                # Check Max Projection compatibility with Volumetric models
-                user_max_proj = use_max_proj_checkbox.value
-                if inference_mode == 'vol2vol' and user_max_proj:
-                    max_proj_setting = False
-                else:
-                    max_proj_setting = user_max_proj
-
                 # Set configs
-                base_cfg.mode = 'uncertainty_map'
-                base_cfg.model.net['pred_slice2vol']['jupyter'] = True
-                base_cfg.model.net['pred_slice2vol']['pixel_dim'] = pixel_dim
-                base_cfg.model.net['pred_slice2vol']['multi_pred_mode'] = multi_pred_mode_dropdown.value
-                base_cfg.model.net['pred_slice2vol']['n_samples'] = int(n_samples_text.value)
-                
-                # Inject dynamic settings
-                base_cfg.model.net['pred_slice2vol']['inference_mode'] = inference_mode
-                base_cfg.model.net['pred_slice2vol']['max_proj'] = max_proj_setting
-
-                if '_old' in base_cfg.model.framework:
-                    base_cfg.model.net['pred_slice2vol']['n_class_correction'] = base_cfg.model.net['params']['n_classes']
-                else:
-                    base_cfg.model.net['pred_slice2vol']['n_class_correction'] = base_cfg.model.net['params']['out_channels']
-                
-                base_cfg.model.net['pred_slice2vol']['remove_object_size'] = parse_int_list(remove_objects_text.value) if use_remove_objects_checkbox.value else None
-                base_cfg.model.net['pred_slice2vol']['hole_size_threshold'] = parse_int_list(hole_size_threshold_text.value) if apply_holes_checkbox.value else None
-                if apply_holes_checkbox.value: base_cfg.model.net['pred_slice2vol']['sv'] = True    
-                base_cfg.model.net['pred_slice2vol']['min_thickness_list'] = parse_int_list(min_thickness_list_text.value) if apply_thickness_checkbox.value else None
-                base_cfg.model.net['pred_slice2vol']['perycites_correction'] = apply_pericytes_checkbox.value
-                
+                base_cfg.mode = 'inference'
                 base_cfg.data.inference_input.dir = Path(selected_path_base) 
-                base_cfg.data.inference_input.data_type = ".tiff,.tif"
             except Exception as e:
                 print(f"Config Error: {e}")
                 return
