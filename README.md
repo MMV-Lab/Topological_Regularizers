@@ -74,7 +74,7 @@ If you need to avoid the Jupyter Notebook execution we provide a full cli versio
 
 Where the inputs are the same required in the Jupyter notebook
 
-## Topological Regularizators availables
+## Available Topological Regularizer Terms
 
 The training objective $\mathscr{L}_{total}$ is a weighted sum of a base segmentation loss and the desired regularization terms:
 
@@ -103,3 +103,4 @@ $\mathscr{L}_{total}=\mathscr{L}_{base}(P,Y)+\sum_{r\in Reg}\lambda_r\cdot\omega
 
 ## Some results of the use of our regularizator terms 
 <img src="docs/imgs/summ.png" width="800"/>
+
