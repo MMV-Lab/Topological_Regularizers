@@ -248,6 +248,7 @@ def main():
         base_cfg.model.net['module_name'] = base_cfg.model.net['module_name'] + '_old'
 
     base_cfg.data.inference_input.dir = Path(args.images_folder)
+    base_cfg.data.inference_output.path = Path(args.images_folder).parent
     # ---------------------------------------------------------
     # Execution Routing
     # ---------------------------------------------------------
