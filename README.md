@@ -5,7 +5,6 @@
   <img src="https://img.shields.io/badge/Python-3.9+-blue?style=flat-square&logo=python" />
   <img src="https://img.shields.io/badge/PyTorch-2.0+-ee4c2c?style=flat-square&logo=pytorch" />
   <img src="https://img.shields.io/badge/PyTorch3D-0.7+-blueviolet?style=flat-square" />
-  <img src="https://img.shields.io/badge/vedo-2024-green?style=flat-square" />
 </p>
 
 This project is detailed in the following [paper](https://)
