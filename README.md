@@ -23,7 +23,14 @@ conda create -y -n topo_reg -c conda-forge python=3.11
 conda activate topo_reg
 ```
 
-This project is implemented within our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) framework. To install it, follow the instructions in the corresponding repository:
+Clone the current repository
+
+```bash
+git clone https://github.com/MMV-Lab/Topological_Regularizers.git
+cd Topological_Regularizers
+```
+
+This project is implemented within our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) framework. To install it, lets follow the instructions in the corresponding repository:
 
 ```bash
 git clone https://github.com/MMV-Lab/mmv_im2im.git
@@ -31,7 +38,7 @@ cd mmv_im2im
 pip install -e .[all]
 ```
 
-Run 
+then intall the requerients on the Topological_Regularizers repo
 
 ```bash
 pip install -r requirements.txt
@@ -58,9 +65,6 @@ To use it, run Jupyter Lab, define your model in the provided [YAML templates](d
 If you need to avoid the Jupyter Notebook execution we provide a full cli version executable trought:
 
 `python core/inference_cli.py --yaml_path /your/path/ --images_folder /your/path/ --models_folder /your/path/ --multi_output_dir /your/path/  --weight_option last --pipeline_mode multi `
-
-Where the inputs are the same required in the Jupyter notebook
-
 
 For more detailed info related to training and inference, please refer to the documentation in our [Im2Im Transformation](https://github.com/MMV-Lab/mmv_im2im/tree/main) repo.
 

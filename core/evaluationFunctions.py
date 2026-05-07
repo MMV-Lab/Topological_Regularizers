@@ -23,34 +23,23 @@ logging.getLogger("bioio").setLevel(logging.ERROR)
 
 ##################################################### metrics computations functions ################################################################
 def to_monai_tensor(matrix):
-    """
-    Converts a numpy array of shape (Z, Y, X) or (Y, X) into 
-    a MONAI compatible PyTorch tensor of shape (B, C, ...).
-    """
     return torch.tensor(matrix, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
 
-
-def extract_boundary(mask, min_boundary_width=1, dilation_ratio=0.02):
-    """
-    Extracts the boundary of a binary mask using morphological operations.
-    Supports both 2D and 3D robustly.
-    """
+def extract_boundary(mask, width=1):
     if not np.any(mask):
         return np.zeros_like(mask, dtype=bool)
-        
-    dims = mask.shape
-    diag = np.sqrt(sum(d**2 for d in dims))
-    d = max(int(round(dilation_ratio * diag)), min_boundary_width)
     
-    eroded = binary_erosion(mask, iterations=d)
-    boundary = mask.astype(bool) & ~eroded
+    mask_bool = mask.astype(bool)
+    boundary = np.zeros_like(mask_bool)
+    
+    for z in range(mask_bool.shape[0]):
+        if np.any(mask_bool[z]):
+            eroded = binary_erosion(mask_bool[z], iterations=width)
+            boundary[z] = mask_bool[z] ^ eroded
+            
     return boundary
 
-
 def boundary_iou(y_pred, y_true):
-    """
-    Calculates Boundary Intersection over Union (Boundary Crispness).
-    """
     bound_pred = extract_boundary(y_pred)
     bound_true = extract_boundary(y_true)
     
@@ -61,11 +50,7 @@ def boundary_iou(y_pred, y_true):
         return 1.0 if np.sum(bound_pred) == 0 and np.sum(bound_true) == 0 else 0.0
     return intersection / union
 
-
 def overall_contour_agreement(y_pred, y_true):
-    """
-    Calculates the Overall Contour Agreement (Boundary Dice / F1 Score).
-    """
     bound_pred = extract_boundary(y_pred)
     bound_true = extract_boundary(y_true)
     
@@ -446,7 +431,7 @@ def save_summary_plots(df, folder_path, is_single=True):
         plt.tight_layout()
         
         save_name = folder_path / "summary_plot.png"
-        plt.savefig(save_name, dpi=300)
+        plt.savefig(save_name, dpi=600)
         plt.close()
     else:
         metrics = {
@@ -487,7 +472,7 @@ def save_summary_plots(df, folder_path, is_single=True):
             
             plt.tight_layout()
             save_name = folder_path / f"summary_plot_{title.lower()}.png"
-            plt.savefig(save_name,dpi=300)
+            plt.savefig(save_name,dpi=600)
             plt.close()
 
 
@@ -658,7 +643,7 @@ def plot_curves(dataframe, columns, title, filename, color_list_or_map, y_label)
 
     plt.grid(False) 
     plt.tight_layout(rect=[0, 0, 0.85, 1])
-    plt.savefig(filename, dpi=300)
+    plt.savefig(filename, dpi=600)
     plt.close()
 
 
@@ -673,7 +658,7 @@ def plot_distributions(dataframe, columns, title, filename_base, y_label):
     plt.grid(False)
             
     plt.tight_layout(rect=[0, 0, 0.85, 1])
-    plt.savefig(f'{filename_base}_boxplot.png', dpi=300)
+    plt.savefig(f'{filename_base}_boxplot.png', dpi=600)
     plt.close()
 
     plt.figure(figsize=(10, 6))
@@ -684,7 +669,7 @@ def plot_distributions(dataframe, columns, title, filename_base, y_label):
     plt.grid(False)
     
     plt.tight_layout(rect=[0, 0, 0.85, 1])
-    plt.savefig(f'{filename_base}_violinplot.png', dpi=300)
+    plt.savefig(f'{filename_base}_violinplot.png', dpi=600)
     plt.close()
 
 
